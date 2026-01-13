@@ -1,0 +1,136 @@
+---
+- name: Setup Todo-List App with Docker and Watchtower
+  hosts: docker_vm
+  become: yes
+
+  vars:
+    app_path: /home/ubuntu/todo-app
+    docker_image: mazenmostafa429/to-do-list:latest
+    
+  
+
+  tasks:
+
+    
+    - name: Update apt packages
+      apt:
+        update_cache: yes
+        force_apt_get: yes
+
+  
+    - name: Install required packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+        state: present
+
+    
+    - name: Install Docker using official script
+      shell: curl -fsSL https://get.docker.com | sh
+      args:
+        executable: /bin/bash
+
+   
+
+
+
+
+   
+    - name: Ensure Docker service is running
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Ensure python3-pip is installed
+      apt:
+        name: python3-pip
+        state: present
+
+    - name: Install Docker SDK for Python
+      apt:
+        name: python3-docker
+        state: present
+        update_cache: yes
+
+    - name: Pull Docker image
+      docker_image:
+        name: "{{ docker_image }}"
+        source: pull
+
+   
+    - name: Install Docker Compose Plugin
+      apt:
+        name: docker-compose-plugin
+        state: present
+        update_cache: yes
+
+    - name: Verify Docker Compose installation
+      command: docker compose version
+      register: compose_version
+
+    - name: Show Docker Compose version
+      debug:
+        msg: "{{ compose_version.stdout }}"
+
+
+   
+   
+     
+       
+       
+
+
+    
+    - name: Create app directory
+      file:
+        path: "{{ app_path }}"
+        state: directory
+
+    
+    - name: Copy docker-compose.yml
+      copy:
+        src: docker-compose.yml
+        dest: "{{ app_path }}/docker-compose.yml"
+        mode: '0644'
+
+    - name: Copy .env file
+      copy:
+        src: .env
+        dest: "{{ app_path }}/.env"
+        mode: '0644'
+
+    
+    - name: Pull Docker image
+      docker_image:
+        name: "{{ docker_image }}"
+        source: pull
+
+    
+
+
+    - name: Run Todo-List app with Docker Compose
+      shell: docker compose -f {{ app_path }}/docker-compose.yml up -d
+      args:
+        chdir: "{{ app_path }}"
+
+
+
+
+   
+    - name: Run Watchtower for auto-update
+      docker_container:
+        name: watchtower
+        image: containrrr/watchtower
+        state: started
+        restart_policy: always
+        command: "--cleanup --interval 60 todo-app"
+        volumes:
+          - /var/run/docker.sock:/var/run/docker.sock
+
+
+
+
